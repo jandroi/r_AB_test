@@ -1,11 +1,11 @@
 ---
-title: "R Notebook"
+title: "R Notebook" 
 output: rmarkdown::github_document
 ---
 
-This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code.
 
-Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*.
 
 
 
@@ -33,7 +33,7 @@ library(plyr)
 
 ```{r set-options, echo=FALSE, cache=FALSE}
 options(width = 1800)
-knitr::opts_chunk$set(fig.width=12, fig.height=8) 
+knitr::opts_chunk$set(fig.width=12, fig.height=8)
 ```
 
 
@@ -80,7 +80,7 @@ df$event_name <- mapvalues(df$event_name, from=a, to=b)
 
 ```{r}
 
-df %>% 
+df %>%
   rename(
     event_ = Sepal.Length,
     sepal_width = Sepal.Width

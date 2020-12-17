@@ -1,6 +1,6 @@
 ---
 title: "A/B Test"
-author: ""
+author: "" 
 date: "3/12/2020"
 output: rmarkdown::github_document
 ---
@@ -31,7 +31,7 @@ p_load(reshape)
 
 ```{r set-options, echo=FALSE, cache=FALSE}
 options(width = 1800)
-knitr::opts_chunk$set(fig.width=12, fig.height=8) 
+knitr::opts_chunk$set(fig.width=12, fig.height=8)
 ```
 
 
@@ -53,7 +53,7 @@ summary(df)
 
 ```
 ```{r}
-##Analyze Dataframe 
+##Analyze Dataframe
 dim(df)
 ```
 
@@ -80,7 +80,7 @@ df <- df %>%
 ```
 
 ### Multiple Boardings
-These table is created to check users with more than 1 boarding event in their register. 
+These table is created to check users with more than 1 boarding event in their register.
 ```{r Multiple Boardings}
 multiple_boardings <- df %>%
   group_by(user_pseudo_id, event_name) %>%
@@ -92,23 +92,23 @@ multiple_boardings <- df %>%
 ```
 
 ```{r}
-df <- df %>% 
+df <- df %>%
   filter(!user_pseudo_id %in% multiple_boardings$user_pseudo_id)
 
 ```
-### Data Splitting 
-The dataset is divided by dates, from the first four weeks is design phase. 
-From February 3rd to March 29th is experiment phase. 
+### Data Splitting
+The dataset is divided by dates, from the first four weeks is design phase.
+From February 3rd to March 29th is experiment phase.
 
 ```{r Data Splitting}
 design <- df%>%
   filter(between(user_first_touch_timestamp, as_datetime("2020-01-06"), as_datetime("2020-02-03")) & between(event_timestamp, as_datetime("2020-01-06"), as_datetime("2020-02-03")))
-design$toweek <- as.Date(design$user_first_touch_timestamp) + days(-1) 
+design$toweek <- as.Date(design$user_first_touch_timestamp) + days(-1)
 
 experiment <- df%>%
-  filter(between(user_first_touch_timestamp, as_datetime("2020-02-03"), as_datetime("2020-03-30")) 
+  filter(between(user_first_touch_timestamp, as_datetime("2020-02-03"), as_datetime("2020-03-30"))
          & between(event_timestamp, as_datetime("2020-02-03"), as_datetime("2020-03-30")))
-experiment$toweek <- as.Date(experiment$user_first_touch_timestamp) + days(-1) 
+experiment$toweek <- as.Date(experiment$user_first_touch_timestamp) + days(-1)
 
 ```
 ### Design EDA
@@ -139,25 +139,25 @@ design %>%
 ## Plot of users per week (From jan.6 to feb.2 - 4 complete weeks)
 
 ```{r warning=FALSE, message=FALSE}
-design %>% 
+design %>%
   group_by(wk = week(floor_date(as.Date(toweek), unit="week")), event_name)%>%
   summarise(usercount=n())%>%
   ggplot(.,aes(wk, usercount, color=event_name))+
   geom_point()+
   geom_line()+
   theme_classic()+
-  scale_x_continuous("Week number", limits = c(1, 4)) 
+  scale_x_continuous("Week number", limits = c(1, 4))
 
 ```
 ## Faceted plot with total average (88k)
 
 ```{r warning=FALSE, message=FALSE}
-design %>% 
+design %>%
   group_by(wk = week(floor_date(as.Date(toweek), unit="week")), event_name)%>%
   summarise(usercount=n())%>%
   ggplot(.,aes(wk, usercount, color=event_name))+
   geom_col(aes(fill=event_name))+
-  geom_hline(aes(yintercept=mean(usercount)), 
+  geom_hline(aes(yintercept=mean(usercount)),
              color = "black", linetype='dashed')+
   theme_classic()+
   theme(legend.position='none')+
@@ -166,7 +166,7 @@ design %>%
 
 ### KPI Calculation
 ```{r}
-pre_test_base <- design %>% 
+pre_test_base <- design %>%
   group_by(weeks = week(floor_date(as.Date(toweek), unit="week")), user_pseudo_id, event_name) %>%
   summarise( count = if_else(n()>0, 1, 0)) %>%
   pivot_wider( names_from = event_name, values_from = count, values_fill = 0)
@@ -182,9 +182,9 @@ pre_test_base %>%
   ggplot(aes(x= weeks, y = counts, col = event_name  )) + geom_point() + geom_line()
 
 ```
-### Power Analysis 
+### Power Analysis
 ```{r Power Calculation}
-power_calculation_t <- function(uplift_an, sig_level,kpi_v) { 
+power_calculation_t <- function(uplift_an, sig_level,kpi_v) {
   pwr.t.test.sample.size<- as.data.frame(
     do.call( "cbind", lapply(1:length(sig_level), function(i){
       sapply(1:length(uplift_an), function(j){
@@ -195,7 +195,7 @@ power_calculation_t <- function(uplift_an, sig_level,kpi_v) {
                      sig.level=sig_level[i],
                      power=0.8,
                      alternative= "greater") $n})})))
-  
+
   table_format<- function(sample_size_table, sig_level, uplift_an){
     colnames(sample_size_table)<- paste(sig_level,"Significance Level")
     ftg<- cbind(uplift_an, sample_size_table)
@@ -205,7 +205,7 @@ power_calculation_t <- function(uplift_an, sig_level,kpi_v) {
     rfg$required_weeks <- rfg$samplesize/(length(pre_test_base$first_open)/(length(unique(pre_test_base$weeks))))
     return(rfg)
   }
-  
+
   return(table_format(pwr.t.test.sample.size, sig_level, uplift_an))
 }
 ```
@@ -234,7 +234,7 @@ ggplot(sample_size_3_groups, aes(samplesize, uplift, size = required_weeks, colo
 
 ```
 ```{r Ef. size boarding_finished}
-pwr.2p.test( h= , 
+pwr.2p.test( h= ,
              n= 157263.489,
              sig.level= 0.5 ,
              power=0.8,
@@ -242,7 +242,7 @@ pwr.2p.test( h= ,
 h
 ```
 ```{r Ef. size other KPIs}
-pwr.t.test(  d= , 
+pwr.t.test(  d= ,
              n= 99749.128,
              sig.level= 0.01666667 ,
              power= 0.8,
@@ -260,16 +260,16 @@ groups_variant <- experiment %>% inner_join(users_groups, by = c("user_pseudo_id
 
 ```
 ```{r KPI Calculation}
-experiment_base <- groups_variant %>% 
+experiment_base <- groups_variant %>%
   group_by(group_name, weeks = week(floor_date(as.Date(toweek), unit="week")), user_pseudo_id, event_name) %>%
   summarise(count = n()) %>%
   pivot_wider( names_from = event_name, values_from = count, values_fill = 0)
 
-experiment_kpi <- experiment_base %>% 
+experiment_kpi <- experiment_base %>%
   group_by(group_name)%>%
   summarise( users = sum(first_open), first_open = mean(first_open),boarding_finished = mean(boarding_finished), diagnosis_open_camera = mean(diagnosis_open_camera), calculator_calculate = mean(calculator_calculate), community_open_post = mean(community_open_post))
 
-experiment_sum <- experiment_base %>% 
+experiment_sum <- experiment_base %>%
   group_by(group_name)%>%
   summarise( users = sum(first_open), first_open = sum(first_open),boarding_finished = sum(boarding_finished), diagnosis_open_camera = sum(diagnosis_open_camera), calculator_calculate = sum(calculator_calculate), community_open_post = sum(community_open_post))
 
@@ -317,4 +317,3 @@ eff_size_group_a_community_open_post <- ES.h((((0.1546038 - 0.1534814) + 1) * 0.
 eff_size_group_a_boarding_finished <- ES.h((((0.7819594 - 0.7643218) + 1) * 0.7643218), 0.7643218)
 
 ```
-
