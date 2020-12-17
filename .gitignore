@@ -1,6 +1,6 @@
-.gitignore
 .RData
 .Rhisstory
 /data
 .Rproj.user
 r_AB_test.Rproj
+recoding.Rmd
