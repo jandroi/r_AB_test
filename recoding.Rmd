@@ -1,0 +1,89 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
+
+
+
+```{r libraries, echo=FALSE, warning=FALSE}
+library(pacman)
+p_load(dplyr)
+p_load(ggplot2)
+p_load(tidyverse)
+p_load(lubridate)
+p_load(summarytools)
+p_load(pwr)
+p_load(pacman)
+p_load(kableExtra)
+p_load(tidyr)
+p_load(readr)
+p_load(tsibble)
+p_load(Hmisc)
+p_load(funModeling)
+p_load(reshape)
+
+
+library(plyr)
+
+```
+
+```{r set-options, echo=FALSE, cache=FALSE}
+options(width = 1800)
+knitr::opts_chunk$set(fig.width=12, fig.height=8) 
+```
+
+
+```{r importing}
+## Import
+df <- read.csv("data/events.csv")
+```
+```{r Variable overview}
+df%>%head()%>% kable() %>%
+  kable_styling(full_width = F, position = "left") %>%
+  row_spec(0, color = "white", background = "#566573")
+
+```
+
+
+```{r}
+
+unique(df$event_name)
+
+```
+
+```{r}
+
+a <- c("boarding_finished", "library_open", "calculator_calculate", "first_open", "boarding_accept_language", "diagnosis_open_camera", "diagnosis_detect_crop_group", "diagnosis_detect_crop", "diagnosis_detect_pathogen", "diagnosis_detect_other", "diagnosis_detect_object", "community_open_post")
+b <- c('event_1', 'event_2', 'event_3', 'event_4', 'event_5', 'event_6', 'event_7', 'event_8', 'event_9', 'event_10', 'event_11', 'event_12')
+
+smple <- df$event_name[1:10000]
+```
+
+```{r}
+
+data.frame(a,b)
+
+```
+
+
+
+```{r}
+
+df$event_name <- mapvalues(df$event_name, from=a, to=b)
+
+
+```
+
+```{r}
+
+df %>% 
+  rename(
+    event_ = Sepal.Length,
+    sepal_width = Sepal.Width
+    )
+
+```
