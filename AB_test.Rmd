@@ -2,7 +2,7 @@
 title: "A/B Test"
 author: ""
 date: "3/12/2020"
-output: html_document
+output: rmarkdown::github_document
 ---
 
 ```{r setup, include=FALSE}
@@ -82,7 +82,7 @@ df <- df %>%
 ### Multiple Boardings
 These table is created to check users with more than 1 boarding event in their register. 
 ```{r Multiple Boardings}
-multiple_boardings <- plantix %>%
+multiple_boardings <- df %>%
   group_by(user_pseudo_id, event_name) %>%
   summarise(count = n()) %>%
   pivot_wider(names_from = event_name, values_from = count, values_fill = 0)%>%
