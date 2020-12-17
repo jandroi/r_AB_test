@@ -1,0 +1,320 @@
+---
+title: "A/B Test"
+author: ""
+date: "3/12/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r libraries, echo=FALSE, warning=FALSE}
+library(pacman)
+p_load(dplyr)
+p_load(ggplot2)
+p_load(tidyverse)
+p_load(lubridate)
+p_load(summarytools)
+p_load(pwr)
+p_load(pacman)
+p_load(kableExtra)
+p_load(tidyr)
+p_load(readr)
+p_load(tsibble)
+p_load(Hmisc)
+p_load(funModeling)
+p_load(reshape)
+
+```
+
+```{r set-options, echo=FALSE, cache=FALSE}
+options(width = 1800)
+knitr::opts_chunk$set(fig.width=12, fig.height=8) 
+```
+
+
+```{r importing}
+## Import
+df <- read.csv("data/events.csv")
+```
+
+```{r Variable overview}
+df%>%head()%>% kable() %>%
+  kable_styling(full_width = F, position = "left") %>%
+  row_spec(0, color = "white", background = "#566573")
+
+```
+
+```{r}
+glimpse(df)
+summary(df)
+
+```
+```{r}
+##Analyze Dataframe 
+dim(df)
+```
+
+```{r}
+
+##Frequency of the variables
+freq(df$event_name)
+```
+
+### Data Cleaning ####
+Duplicates removal
+Filtering by important events
+Formating of data date types
+
+```{r Data Cleaning}
+df <- df %>% distinct()
+df$event_timestamp = as_datetime(df$event_timestamp)
+df$user_first_touch_timestamp = as_datetime(df$user_first_touch_timestamp)
+df <- df %>%
+  filter(event_timestamp >= user_first_touch_timestamp & event_name %in% c("event_4", "event_1", "event_6", "event_12", "event_3"))
+
+
+
+```
+
+### Multiple Boardings
+These table is created to check users with more than 1 boarding event in their register. 
+```{r Multiple Boardings}
+multiple_boardings <- plantix %>%
+  group_by(user_pseudo_id, event_name) %>%
+  summarise(count = n()) %>%
+  pivot_wider(names_from = event_name, values_from = count, values_fill = 0)%>%
+  filter(boarding_finished >= 2 | first_open != 1)
+
+
+```
+
+```{r}
+df <- df %>% 
+  filter(!user_pseudo_id %in% multiple_boardings$user_pseudo_id)
+
+```
+### Data Splitting 
+The dataset is divided by dates, from the first four weeks is design phase. 
+From February 3rd to March 29th is experiment phase. 
+
+```{r Data Splitting}
+design <- df%>%
+  filter(between(user_first_touch_timestamp, as_datetime("2020-01-06"), as_datetime("2020-02-03")) & between(event_timestamp, as_datetime("2020-01-06"), as_datetime("2020-02-03")))
+design$toweek <- as.Date(design$user_first_touch_timestamp) + days(-1) 
+
+experiment <- df%>%
+  filter(between(user_first_touch_timestamp, as_datetime("2020-02-03"), as_datetime("2020-03-30")) 
+         & between(event_timestamp, as_datetime("2020-02-03"), as_datetime("2020-03-30")))
+experiment$toweek <- as.Date(experiment$user_first_touch_timestamp) + days(-1) 
+
+```
+### Design EDA
+```{r Distinct users}
+design %>%
+  group_by(event_name) %>%
+  summarise(distinct_users = length(unique(user_pseudo_id))) %>%
+  arrange(desc(distinct_users))
+
+
+```
+## top 10 Number of distinct users per country
+
+```{r warning=FALSE, message=FALSE}
+design %>%
+  group_by(country) %>%
+  summarise(distinct_users = length(unique(user_pseudo_id))) %>%
+  arrange(desc(distinct_users))%>%
+  head(10)%>%
+  ggplot(., aes(country, distinct_users))+
+  geom_col(aes(reorder(country, distinct_users)))+
+  theme_classic()+
+  labs(title = "Number of users by target Events")+
+  coord_flip()+
+  geom_label(aes(label=distinct_users))
+
+```
+## Plot of users per week (From jan.6 to feb.2 - 4 complete weeks)
+
+```{r warning=FALSE, message=FALSE}
+design %>% 
+  group_by(wk = week(floor_date(as.Date(toweek), unit="week")), event_name)%>%
+  summarise(usercount=n())%>%
+  ggplot(.,aes(wk, usercount, color=event_name))+
+  geom_point()+
+  geom_line()+
+  theme_classic()+
+  scale_x_continuous("Week number", limits = c(1, 4)) 
+
+```
+## Faceted plot with total average (88k)
+
+```{r warning=FALSE, message=FALSE}
+design %>% 
+  group_by(wk = week(floor_date(as.Date(toweek), unit="week")), event_name)%>%
+  summarise(usercount=n())%>%
+  ggplot(.,aes(wk, usercount, color=event_name))+
+  geom_col(aes(fill=event_name))+
+  geom_hline(aes(yintercept=mean(usercount)), 
+             color = "black", linetype='dashed')+
+  theme_classic()+
+  theme(legend.position='none')+
+  facet_wrap(~event_name)
+```
+
+### KPI Calculation
+```{r}
+pre_test_base <- design %>% 
+  group_by(weeks = week(floor_date(as.Date(toweek), unit="week")), user_pseudo_id, event_name) %>%
+  summarise( count = if_else(n()>0, 1, 0)) %>%
+  pivot_wider( names_from = event_name, values_from = count, values_fill = 0)
+
+pre_test_kpi <- colMeans(pre_test_base[,3:7])
+```
+
+```{r}
+pre_test_base %>%
+  group_by(weeks)%>%
+  summarise(event_4 = mean(event_4),event_1 = mean(event_1), event_6 = mean(event_6), event_3 = mean(event_3), event_12 = mean(event_12))%>%
+  gather("event_4", "event_1", "event_6", "event_12", "event_3" ,key=event_name, value= "counts" )%>%
+  ggplot(aes(x= weeks, y = counts, col = event_name  )) + geom_point() + geom_line()
+
+```
+### Power Analysis 
+```{r Power Calculation}
+power_calculation_t <- function(uplift_an, sig_level,kpi_v) { 
+  pwr.t.test.sample.size<- as.data.frame(
+    do.call( "cbind", lapply(1:length(sig_level), function(i){
+      sapply(1:length(uplift_an), function(j){
+        variant <- (uplift_an[j] + 1) * kpi_v
+        baseline <- ES.h( variant, kpi_v)
+        pwr.t.test( d=baseline,
+                     n=,
+                     sig.level=sig_level[i],
+                     power=0.8,
+                     alternative= "greater") $n})})))
+  
+  table_format<- function(sample_size_table, sig_level, uplift_an){
+    colnames(sample_size_table)<- paste(sig_level,"Significance Level")
+    ftg<- cbind(uplift_an, sample_size_table)
+    rfg <- cbind(melt(ftg, id = "uplift_an"), significance_level = rep(sig_level, each = length(uplift_an)))
+    rfg <- rfg[-c(2)]
+    names(rfg)[2] <-"samplesize"
+    rfg$required_weeks <- rfg$samplesize/(length(pre_test_base$first_open)/(length(unique(pre_test_base$weeks))))
+    return(rfg)
+  }
+  
+  return(table_format(pwr.t.test.sample.size, sig_level, uplift_an))
+}
+```
+
+```{r Bonferroni Correction}
+bonferroni_correction <- function(alpha, no_variants){
+  p_adjusted <- alpha/no_variants
+  return (p_adjusted)
+}
+
+
+```
+```{r Power Analysis Results}
+sig <- 0.05
+uplift <-seq(0.005, 0.1, 0.005)
+
+
+sample_size_2_groups<- power_calculation_t(uplift ,sig , min(colMeans(pre_test_base[,4:7])))
+sample_size_3_groups<- power_calculation_t(uplift,bonferroni_correction(sig,3),min(colMeans(pre_test_base[,3:7])))
+
+ggplot(sample_size_2_groups, aes(samplesize, uplift, size = required_weeks, color = as.factor(required_weeks))) +geom_point() + ylab("uplift") + xlab("sample size")
+ggplot(sample_size_3_groups, aes(samplesize, uplift, size = required_weeks, color = as.factor(required_weeks))) +geom_point() + ylab("uplift") + xlab("sample size")
+
+
+
+
+```
+```{r Ef. size boarding_finished}
+pwr.2p.test( h= , 
+             n= 157263.489,
+             sig.level= 0.5 ,
+             power=0.8,
+             alternative= "greater")
+h
+```
+```{r Ef. size other KPIs}
+pwr.t.test(  d= , 
+             n= 99749.128,
+             sig.level= 0.01666667 ,
+             power= 0.8,
+             alternative= "greater")
+d
+```
+### Experiment Phase
+##users groups loading and adding to the experiment data_set
+
+```{r User Groups Sorting}
+users_groups <- read.csv("users_groups.csv")
+groups_variant <- experiment %>% inner_join(users_groups, by = c("user_pseudo_id" = "user_pseudo_id"))
+
+
+
+```
+```{r KPI Calculation}
+experiment_base <- groups_variant %>% 
+  group_by(group_name, weeks = week(floor_date(as.Date(toweek), unit="week")), user_pseudo_id, event_name) %>%
+  summarise(count = n()) %>%
+  pivot_wider( names_from = event_name, values_from = count, values_fill = 0)
+
+experiment_kpi <- experiment_base %>% 
+  group_by(group_name)%>%
+  summarise( users = sum(first_open), first_open = mean(first_open),boarding_finished = mean(boarding_finished), diagnosis_open_camera = mean(diagnosis_open_camera), calculator_calculate = mean(calculator_calculate), community_open_post = mean(community_open_post))
+
+experiment_sum <- experiment_base %>% 
+  group_by(group_name)%>%
+  summarise( users = sum(first_open), first_open = sum(first_open),boarding_finished = sum(boarding_finished), diagnosis_open_camera = sum(diagnosis_open_camera), calculator_calculate = sum(calculator_calculate), community_open_post = sum(community_open_post))
+
+experiment_base %>%
+  group_by(group_name, weeks)%>%
+  summarise(boarding_finished = mean(boarding_finished))%>%
+  ggplot(aes(x= weeks, y = boarding_finished, col = group_name  )) + geom_point() + geom_line()
+
+```
+```{r}
+group_a_diagnosis_open_camera <- t.test(x= experiment_base$diagnosis_open_camera[experiment_base$group_name=='variant_a'],y= experiment_base$diagnosis_open_camera[experiment_base$group_name=='control_group'], alternative = 'greater')
+group_a_calculator_calculate <- t.test(x= experiment_base$calculator_calculate[experiment_base$group_name=='variant_a'], y= experiment_base$calculator_calculate[experiment_base$group_name=='control_group'], alternative = 'greater')
+group_a_community_open_post <- t.test(x= experiment_base$community_open_post[experiment_base$group_name=='variant_a'], y= experiment_base$community_open_post[experiment_base$group_name=='control_group'], alternative = 'greater')
+group_a_boarding_finished <- prop.test(x=c(126557, 123626), n=c(161846, 161746), alternative='greater', conf.level = 0.95 )
+
+conf_interval_a <- function(x) {
+  p <- x/161846
+  n <- 161846
+  z <- qnorm(0.95)
+  p + c(-1,1)*z*sqrt(p*(1-p)/n)
+}
+
+
+
+
+group_b_diagnosis_open_camera <- t.test(x= experiment_base$diagnosis_open_camera[experiment_base$group_name=='variant_b'],y= experiment_base$diagnosis_open_camera[experiment_base$group_name=='control_group'], alternative = 'greater')
+group_b_calculator_calculate <- t.test(x= experiment_base$calculator_calculate[experiment_base$group_name=='variant_b'], y= experiment_base$calculator_calculate[experiment_base$group_name=='control_group'], alternative = 'greater')
+group_b_community_open_post <- t.test(x= experiment_base$community_open_post[experiment_base$group_name=='variant_b'], y= experiment_base$community_open_post[experiment_base$group_name=='control_group'], alternative = 'greater')
+group_b_boarding_finished <- prop.test(x=c(125419, 123626), n=c(162390, 161746), alternative='greater', conf.level = 0.95 )
+
+conf_interval_b <- function(x) {
+  p <- x/162390
+  n <- 162390
+  z <- qnorm(0.95)
+  p + c(-1,1)*z*sqrt(p*(1-p)/n)
+}
+
+conf_interval_b(25172)
+
+
+
+eff_size_group_a_diagnosis_open_camera <-ES.h((((0.4898793 - 0.4884387) + 1) * 0.4884387), 0.4884387)
+eff_size_group_a_calculator_calculate <- ES.h((((0.1720339 - 0.1684740) + 1) * 0.1684740), 0.1684740)
+eff_size_group_a_community_open_post <- ES.h((((0.1546038 - 0.1534814) + 1) * 0.1534814), 0.1534814)
+eff_size_group_a_boarding_finished <- ES.h((((0.7819594 - 0.7643218) + 1) * 0.7643218), 0.7643218)
+
+```
+
